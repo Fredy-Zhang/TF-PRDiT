@@ -26,3 +26,15 @@ python sample_xrays.py \
 ```
 
 Use `--rotations` to choose the number of conditioning X-ray views.
+
+## Downstream Task Configs
+
+The downstream config templates keep the same pretrained LIDC prior and add an explicit `downstream` operator section:
+
+| Config | Task |
+|---|---|
+| `configs/lidc_downstream_super_resolution.yaml` | Volumetric super-resolution |
+| `configs/lidc_downstream_infilling.yaml` | Volumetric infilling |
+| `configs/lidc_downstream_deblurring.yaml` | Volumetric deblurring |
+
+These configs define operator settings such as super-resolution scale, infilling mask, and blur kernel. They are intended for the downstream sampling path that uses the same frozen prior with a different measurement operator.

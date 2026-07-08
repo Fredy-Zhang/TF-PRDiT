@@ -24,6 +24,20 @@ The same sampling interface can guide the prior with different measurement opera
   <img src="assets/inverse_problem.png" alt="TF-PRDiT inverse problem structure across sparse X-ray, super-resolution, infilling, and deblurring operators." width="920">
 </p>
 
+## Downstream Task Configs
+
+In addition to sparse X-ray-to-CT sampling, the same frozen prior can be configured for volumetric super-resolution, infilling, and deblurring experiments. The downstream YAML files keep the same LIDC prior/data settings and add a `downstream` section describing the measurement operator.
+
+| Task | Config | Figure |
+|---|---|---|
+| Super-resolution | `configs/lidc_downstream_super_resolution.yaml` | `assets/sr.png` |
+| Infilling | `configs/lidc_downstream_infilling.yaml` | `assets/infilling.png` |
+| Deblurring | `configs/lidc_downstream_deblurring.yaml` | `assets/deblurr.png` |
+
+| Super-resolution | Infilling | Deblurring |
+|---|---|---|
+| <img src="assets/sr.png" alt="3D CT super-resolution result." width="280"> | <img src="assets/infilling.png" alt="3D CT infilling result." width="280"> | <img src="assets/deblurr.png" alt="3D CT deblurring result." width="280"> |
+
 ## Repository Layout
 
 ```text
