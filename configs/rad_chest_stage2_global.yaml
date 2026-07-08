@@ -1,0 +1,44 @@
+# RAD-ChestCT stage 2: global transformer residual path.
+# Set model.pretrained_path to the best stage-1 local denoiser checkpoint.
+
+stage:
+  name: "stage2_global_residual"
+
+data:
+  image_size: 128
+  path: "./data/"
+  task: "rad_chestCT"
+  num_workers: 4
+  augment: false
+  normalize: true
+
+model:
+  name: "DiT-XL/12/12"
+  num_classes: 1
+  in_channels: 1
+  out_channels: 2
+  pretrained_path: "" # filling into the stage 1 weights.
+  flash_attn: true
+
+training:
+  batch_size: 64
+  learning_rate: 1e-4
+  fine_tune_lr: 6e-6
+  epochs: 6000
+  seed: 42
+  gradient_clip: 1.0
+  conditions: false
+
+output:
+  results_dir: "results"
+
+logging:
+  log_every: 400
+  ckpt_every: 1000
+  eval_every: 1000
+
+wandb:
+  project: ""
+  entity: ""
+  tags: ""
+  enable: false
