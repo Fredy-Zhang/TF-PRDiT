@@ -1,27 +1,8 @@
-"""
-Diffusion Transformer (DiT) for 3D Volume Generation
+"""3D Diffusion Transformer architecture used by TF-PRDiT sampling.
 
-A modular implementation of a Diffusion Transformer for generating 3D medical volumes.
-The architecture supports two-stage training with both MLP-based coarse denoising
-and Transformer-based fine refinement paths.
-
-Key Features:
-- Two-stage training (coarse MLP path + fine Transformer path)
-- Normalized 3D positional embeddings
-- AdaLN-Zero conditioning for stable training
-- Flexible patch-based processing for 3D volumes
-- Support for both depth=0 (MLP-only) and depth>0 (hybrid) models
-
-Architecture Components:
-1. PatchEmbed3D: 3D patch extraction and embedding
-2. TimestepEmbedder: Sinusoidal timestep encoding with dual heads
-3. CoarseDenoiser: MLP-based denoising path
-4. FineRefiner: Transformer-based refinement path
-5. DiTBlock: Transformer blocks with AdaLN conditioning
-
-References:
-- GLIDE: https://github.com/openai/glide-text2im
-- MAE: https://github.com/facebookresearch/mae/blob/main/models_mae.py
+The model predicts two volumetric tensors per diffusion step: reconstructed
+noise and reconstructed clean CT. The architecture combines a local MLP
+denoising path with an optional transformer residual path for global context.
 """
 
 # Standard library imports
@@ -46,6 +27,8 @@ to_3tuple = _ntuple(3)
 
 
 class ExtractPatches3D(nn.Module):
+    """Extract overlapping 3D patches and flatten them into token vectors."""
+
     def __init__(self, patch_size: Union[int, Tuple[int, int, int]], 
                  stride: Union[int, Tuple[int, int, int]], 
                  padding: int = 0):
@@ -55,6 +38,7 @@ class ExtractPatches3D(nn.Module):
         self.padding = padding
     
     def forward(self, volume: torch.Tensor) -> torch.Tensor:
+        """Return flattened patches from ``volume`` with shape ``[B, N, C*p^3]``."""
         B, C, D, H, W = volume.size()
         if self.padding > 0:
             volume = F.pad(volume, (self.padding,) * 6, mode='reflect')
@@ -71,6 +55,7 @@ class ExtractPatches3D(nn.Module):
         return patches
 
     def compute_num_patches(self, input_size: Union[int, Tuple[int, int, int]]) -> Tuple[int, Tuple[int, int, int]]:
+        """Compute the number of extracted patches and the 3D patch grid size."""
         input_size = to_3tuple(input_size)
         if self.padding > 0:
             input_size = tuple(s + 2 * self.padding for s in input_size)
@@ -84,6 +69,8 @@ class ExtractPatches3D(nn.Module):
         return f'patch_size={self.patch_size}, stride={self.stride}, padding={self.padding}'
 
 class PatchEmbed3D(nn.Module):
+    """Project flattened 3D patches into transformer token embeddings."""
+
     def __init__(self,
                  patch_size: int = 16,
                  in_chans: int = 1,
@@ -104,6 +91,7 @@ class PatchEmbed3D(nn.Module):
         self.drop = nn.Dropout(dropout)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Embed patch tokens of shape ``[B, N, C*p^3]`` into ``embed_dim``."""
         h = self.fc1(x)
         h = self.act(h)
         h = self.fc2(h)
@@ -112,6 +100,8 @@ class PatchEmbed3D(nn.Module):
         return self.drop(out)
 
 class TimestepEmbedder(nn.Module):
+    """Embed diffusion timesteps for the local and global model paths."""
+
     def __init__(self, 
                  hidden_size: int, 
                  coarse_hidden_size: int, 
@@ -129,6 +119,7 @@ class TimestepEmbedder(nn.Module):
                          else nn.Linear(hidden_size, fine_hidden_size, bias=True))
 
     def forward(self, t: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Return timestep embeddings for the coarse and fine paths."""
         timestep_emb = self.timestep_embedding(t, self.frequency_embedding_size)
         shared_features = self.mlp(timestep_emb)
         coarse_emb = self.coarse_head(shared_features)
@@ -137,6 +128,7 @@ class TimestepEmbedder(nn.Module):
 
     @staticmethod
     def timestep_embedding(t: torch.Tensor, dim: int, max_period: int = 10000) -> torch.Tensor:
+        """Create sinusoidal timestep embeddings."""
         half_dim = dim // 2
         freqs = torch.exp(
             -math.log(max_period) * torch.arange(half_dim, device=t.device, dtype=torch.float32) / half_dim
@@ -148,6 +140,8 @@ class TimestepEmbedder(nn.Module):
         return embedding
 
 class DiTBlock(nn.Module):
+    """AdaLN-conditioned transformer block for 3D patch tokens."""
+
     def __init__(self,
                  hidden_size: int, 
                  num_heads: int, 
@@ -187,12 +181,15 @@ class DiTBlock(nn.Module):
         )
 
     def forward(self, x: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
+        """Apply self-attention and MLP updates conditioned on timestep embedding ``c``."""
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaLN_modulation(c).chunk(6, dim=1)
         x = x + gate_msa.unsqueeze(1) * self.attn(modulate(self.norm1(x), shift_msa, scale_msa))
         x = x + gate_mlp.unsqueeze(1) * self.mlp(modulate(self.norm2(x), shift_mlp, scale_mlp))
         return x
 
 class FinalLayer(nn.Module):
+    """Project refined tokens back to flattened output patches."""
+
     def __init__(self, hidden_size: int, patch_size: int, out_channels: int):
         super().__init__()
         self.norm_final = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
@@ -203,18 +200,19 @@ class FinalLayer(nn.Module):
         )
 
     def forward(self, x: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
+        """Apply timestep-conditioned normalization and final patch projection."""
         shift, scale = self.adaLN_modulation(c).chunk(2, dim=1)
         x = modulate(self.norm_final(x), shift, scale)
         return self.linear(x)
 
 class MlpDenoiser(nn.Module):
+    """Local MLP denoiser operating independently on extracted 3D patches."""
+
     def __init__(self, 
-                 input_size: int,
                  hidden_size: int, 
                  patch_size: int, 
                  out_channels: int, 
                  mlp_ratio: float = 1.0,
-                 swiglu_mlp: bool = False,
                  norm_eps: float = 1e-5):
         super().__init__()
         
@@ -247,6 +245,7 @@ class MlpDenoiser(nn.Module):
         )
 
     def forward(self, x: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
+        """Denoise flattened patch tokens using timestep-conditioned MLP blocks."""
         shift1, scale1, shift2, scale2, shift3, scale3 = self.adaLN_modulation(c).chunk(6, dim=1)
         h = self.mlp1(modulate(self.norm1(x), shift1, scale1))
         h = self.mlp2(modulate(self.norm2(h), shift2, scale2))
@@ -255,6 +254,8 @@ class MlpDenoiser(nn.Module):
         return self.linear_final(h)
 
 class CoarseDenoiser(nn.Module):
+    """Patch extraction plus local MLP denoising path."""
+
     def __init__(self,
                  in_channels: int,
                  extract_patch_size: int,
@@ -263,8 +264,7 @@ class CoarseDenoiser(nn.Module):
                  input_size: int,
                  stride: int = 4,
                  padding: int = 2,
-                 mlp_ratio: float = 1.0,
-                 swiglu_mlp: bool = True):
+                 mlp_ratio: float = 1.0):
         super().__init__()
         self.patch_extractor = ExtractPatches3D(
             patch_size=extract_patch_size,
@@ -274,11 +274,9 @@ class CoarseDenoiser(nn.Module):
         self.num_patches, self.grid_size = self.patch_extractor.compute_num_patches(input_size)
         input_dim = in_channels * extract_patch_size**3
         self.mlp_denoise = MlpDenoiser(
-            input_size=input_size,
             hidden_size=input_dim,
             patch_size=patch_size,
             out_channels=out_channels,
-            swiglu_mlp=swiglu_mlp,
             mlp_ratio=mlp_ratio
         )
     
@@ -286,11 +284,14 @@ class CoarseDenoiser(nn.Module):
                 x: torch.Tensor, 
                 c: torch.Tensor, 
                 return_patches: bool = False) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        """Return denoised patches, optionally along with the extracted input patches."""
         patches = self.patch_extractor(x)
         denoised = self.mlp_denoise(patches, c)
         return (patches, denoised) if return_patches else denoised
 
 class FineRefiner(nn.Module):
+    """Transformer residual path that refines local patch denoising."""
+
     def __init__(self,
                  in_channels: int,
                  extract_patch_size: int,
@@ -299,10 +300,7 @@ class FineRefiner(nn.Module):
                  out_channels: int,
                  depth: int,
                  num_heads: int,
-                 num_patches: int,
                  input_size: int,
-                 stride: int = 4,
-                 padding: int = 2,
                  mlp_ratio: float = 4.0,
                  flash_attn: bool = False):
         super().__init__()
@@ -329,6 +327,7 @@ class FineRefiner(nn.Module):
         self.patch_size = patch_size
     
     def forward(self, x: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
+        """Refine extracted patches with positional encoding and transformer blocks."""
         h = self.patch_embedder(x)
         h = h + self.pos_embed
         for block in self.blocks:
@@ -339,6 +338,8 @@ class FineRefiner(nn.Module):
 # Main DiT Model Architecture
 # =============================================================================
 class DiT(nn.Module):
+    """3D DiT denoiser used by the diffusion sampler."""
+
     def __init__(self,
                  input_size: int = 32,
                  patch_size: int = 2,
@@ -349,7 +350,6 @@ class DiT(nn.Module):
                  depth: int = 28,
                  num_heads: int = 16,
                  mlp_ratio: float = 4.0,
-                 class_dropout_prob: float = 0.1,
                  num_classes: int = 1,
                  learn_sigma: bool = False,
                  flash_attn: bool = False):
@@ -394,8 +394,7 @@ class DiT(nn.Module):
             input_size=input_size,
             stride=stride,
             padding=padding,
-            mlp_ratio=1.0,
-            swiglu_mlp=True
+            mlp_ratio=1.0
         )
         
         # Fine Path: Transformer-based refinement (only when depth > 0)
@@ -409,10 +408,7 @@ class DiT(nn.Module):
                 out_channels=self.out_channels,
                 depth=depth,
                 num_heads=num_heads,
-                num_patches=self.coarse.num_patches,
                 input_size=input_size,
-                stride=stride,
-                padding=padding,
                 mlp_ratio=mlp_ratio,
                 flash_attn=flash_attn
             )
@@ -420,10 +416,9 @@ class DiT(nn.Module):
         # Initialize all weights
         self.initialize_weights()
         
-        # In stage 2 (depth > 0), freeze the coarse path
         if depth > 0:
             self.freeze_coarse_path()
-            logger.info(f"Stage 2 setup: Coarse path frozen, training {depth} transformer layers")
+            logger.info(f"Coarse path frozen; using {depth} transformer refinement layers")
 
     def forward(
         self, 
@@ -432,6 +427,7 @@ class DiT(nn.Module):
         y: Optional[torch.Tensor] = None,
         return_intermediate: bool = False
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        """Predict denoised volume channels for noisy input ``input`` at timestep ``t``."""
         c_coarse, c_fine = self.t_embedder(t)
         with torch.no_grad() if self.depth > 0 else torch.enable_grad():
             if self.depth > 0 or return_intermediate:
@@ -449,6 +445,7 @@ class DiT(nn.Module):
         return x
 
     def unpatchify_3d(self, x: torch.Tensor) -> torch.Tensor:
+        """Reassemble flattened output patches into a dense 3D volume."""
         c = self.out_channels
         p = self.patch_size
         grid_size = self.input_size // p
@@ -457,6 +454,7 @@ class DiT(nn.Module):
         return x.reshape(-1, c, grid_size * p, grid_size * p, grid_size * p)
 
     def freeze_coarse_path(self) -> None:
+        """Disable gradients for the local path used as the frozen prior base."""
         requires_grad(self.coarse, False)
         requires_grad(self.t_embedder.coarse_head, False)
         requires_grad(self.t_embedder.mlp, False)
@@ -465,18 +463,14 @@ class DiT(nn.Module):
         logger.info(f"Frozen {frozen_params:,} parameters, {trainable_params:,} trainable")
 
     def log_config(self, rank: int = 0) -> None:
+        """Log model configuration on rank 0."""
         if rank == 0 and hasattr(self, '_config_to_log'):
             logger.info("DiT Model Configuration:")
             for key, value in self._config_to_log.items():
                 logger.info(f"  {key}: {value}")
 
-    def load_coarse_checkpoint(self, checkpoint_path: str) -> None:
-        checkpoint = torch.load(checkpoint_path, map_location='cpu')
-        self.load_state_dict(checkpoint['model'], strict=False)
-        self.freeze_coarse_path()
-        logger.info(f"Loaded stage 1 checkpoint from {checkpoint_path} and froze coarse path")
-
     def initialize_weights(self, gain: float = 1.0) -> None:
+        """Initialize all model parameters before checkpoint weights are loaded."""
         logger.info("Initializing model weights...")
         def _init_linear_layers(module):
             if isinstance(module, nn.Linear):
@@ -495,6 +489,7 @@ class DiT(nn.Module):
         logger.info("Weight initialization complete")
     
     def _init_timestep_embedder(self) -> None:
+        """Initialize timestep embedding layers."""
         nn.init.normal_(self.t_embedder.mlp[0].weight, std=0.02)
         if self.t_embedder.mlp[0].bias is not None:
             nn.init.zeros_(self.t_embedder.mlp[0].bias)
@@ -507,6 +502,7 @@ class DiT(nn.Module):
                 nn.init.zeros_(self.t_embedder.fine_head.bias)
     
     def _init_coarse_path(self) -> None:
+        """Zero-initialize output projections in the local denoising path."""
         nn.init.constant_(self.coarse.mlp_denoise.adaLN_modulation[-2].weight, 0)
         nn.init.constant_(self.coarse.mlp_denoise.adaLN_modulation[-2].bias, 0)
         if hasattr(self.coarse.mlp_denoise, 'linear_final'):
@@ -520,6 +516,7 @@ class DiT(nn.Module):
                 nn.init.constant_(self.coarse.mlp_denoise.linear_nos.bias, 0)
     
     def _init_fine_path(self, gain: float) -> None:
+        """Initialize transformer refinement path projections and AdaLN gates."""
         if hasattr(self.fine, 'patch_embedder'):
             nn.init.xavier_uniform_(self.fine.patch_embedder.fc1.weight, gain=gain)
             nn.init.xavier_uniform_(self.fine.patch_embedder.fc2.weight, gain=gain)
@@ -541,4 +538,3 @@ class DiT(nn.Module):
             if hasattr(self.fine.final_layer, 'linear_noise'):
                 nn.init.constant_(self.fine.final_layer.linear_noise.weight, 0)
                 nn.init.constant_(self.fine.final_layer.linear_noise.bias, 0)
-

@@ -10,10 +10,24 @@ Paper: [arXiv:2606.20763](https://arxiv.org/abs/2606.20763)
   <img src="assets/x2ct.png" alt="X-ray-to-CT reconstruction results across axial, coronal, and sagittal views." width="920">
 </p>
 
+## Model Structure
+
+TF-PRDiT keeps a pretrained 3D DiT prior frozen during conditional sampling. For each reverse diffusion step, the sampler projects the current denoised CT estimate into X-ray space, compares it with the input sparse X-rays, and uses that consistency signal to guide the next CT estimate.
+
+<p align="center">
+  <img src="assets/overview.png" alt="TF-PRDiT model structure: frozen 3D prior, predictor-corrector sampling, and X-ray consistency guidance." width="920">
+</p>
+
+The same sampling interface can guide the prior with different measurement operators. This README focuses on sparse X-ray-to-CT sampling.
+
+<p align="center">
+  <img src="assets/inverse_problem.png" alt="TF-PRDiT inverse problem structure across sparse X-ray, super-resolution, infilling, and deblurring operators." width="920">
+</p>
+
 ## Repository Layout
 
 ```text
-configs/                  LIDC and RAD-ChestCT config files
+configs/                  Sampling config files
 datasets/                 Dataset loaders
 diffusion/                Image-and-Noise diffusion and X-ray guided sampler
 models/                   3D DiT model definitions
@@ -73,13 +87,13 @@ Relevant config files:
 
 ## Download Pretrained Weights
 
-Place released checkpoints in `pretrained/`. The conditional sampler uses the stage-2/global checkpoint.
+Place the released TF-PRDiT sampling checkpoint in `pretrained/`.
 
 ```bash
 mkdir -p pretrained
 
-curl -L "<LIDC_STAGE2_GLOBAL_CHECKPOINT_URL>" \
-  -o pretrained/lidc_stage2_global.pt
+curl -L "<TF_PRDIT_LIDC_CHECKPOINT_URL>" \
+  -o pretrained/tf_prdit_lidc.pt
 ```
 
 If the checkpoint is hosted on Google Drive:
@@ -87,8 +101,8 @@ If the checkpoint is hosted on Google Drive:
 ```bash
 pip install gdown
 
-gdown --fuzzy "<LIDC_STAGE2_GLOBAL_GOOGLE_DRIVE_URL>" \
-  -O pretrained/lidc_stage2_global.pt
+gdown --fuzzy "<TF_PRDIT_LIDC_GOOGLE_DRIVE_URL>" \
+  -O pretrained/tf_prdit_lidc.pt
 ```
 
 See [pretrained/README.md](pretrained/README.md) for the checkpoint folder convention.
@@ -100,7 +114,7 @@ Run sparse X-ray-to-CT reconstruction with:
 ```bash
 python sample_xrays.py \
   --config lidc_stage2_global.yaml \
-  --ckpt pretrained/lidc_stage2_global.pt \
+  --ckpt pretrained/tf_prdit_lidc.pt \
   --num-samples 100 \
   --num-sampling-steps 1000 \
   --rotations 2 \
@@ -113,7 +127,7 @@ Use metrics-only mode to avoid saving intermediate PNG/NIfTI files:
 ```bash
 python sample_xrays.py \
   --config lidc_stage2_global.yaml \
-  --ckpt pretrained/lidc_stage2_global.pt \
+  --ckpt pretrained/tf_prdit_lidc.pt \
   --num-samples 100 \
   --rotations 2 \
   --output-dir outputs_metrics \
@@ -129,7 +143,7 @@ The number of input X-ray views is controlled by `--rotations`.
 # One X-ray view
 python sample_xrays.py \
   --config lidc_stage2_global.yaml \
-  --ckpt pretrained/lidc_stage2_global.pt \
+  --ckpt pretrained/tf_prdit_lidc.pt \
   --num-samples 10 \
   --rotations 1 \
   --output-dir outputs_1view \
@@ -138,7 +152,7 @@ python sample_xrays.py \
 # Two orthogonal X-ray views, default paper-style setting
 python sample_xrays.py \
   --config lidc_stage2_global.yaml \
-  --ckpt pretrained/lidc_stage2_global.pt \
+  --ckpt pretrained/tf_prdit_lidc.pt \
   --num-samples 10 \
   --rotations 2 \
   --output-dir outputs_2views \
@@ -147,7 +161,7 @@ python sample_xrays.py \
 # Four X-ray views
 python sample_xrays.py \
   --config lidc_stage2_global.yaml \
-  --ckpt pretrained/lidc_stage2_global.pt \
+  --ckpt pretrained/tf_prdit_lidc.pt \
   --num-samples 10 \
   --rotations 4 \
   --output-dir outputs_4views \

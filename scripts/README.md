@@ -1,6 +1,6 @@
 # Scripts
 
-This folder keeps only the maintained data-download and preprocessing entry points used by the cleaned paper code. Older duplicated CT-Xray preprocessing folders were removed because they contained overlapping logic and hardcoded project paths.
+This folder lists the maintained helper scripts needed for the sampling workflow.
 
 ## Maintained Entry Points
 
@@ -8,7 +8,6 @@ This folder keeps only the maintained data-download and preprocessing entry poin
 |---|---|
 | `download_lidc_idri.py` | Download the X2CT-GAN preprocessed LIDC-IDRI HDF5 dataset. |
 | `ct2xrays.py` | Generate DRR/X-ray projections from CT volumes with DiffDRR. |
-| `preproc_rad_chestCT.py` | Resize/filter RAD-ChestCT NPZ volumes into processed batches. |
 
 ## LIDC-IDRI Dataset Source
 
@@ -78,16 +77,6 @@ python scripts/ct2xrays.py --help
 ```
 
 Common modes include single-view, multi-view, circular, spiral, and dual-view projection generation. The script can auto-detect HU-like input ranges or force normalized-to-HU conversion.
-
-## RAD-ChestCT Preprocessing
-
-```bash
-python scripts/preproc_rad_chestCT.py \
-  --input_dir /path/to/rad_chest_npz \
-  --output_dir /path/to/rad_chest_processed \
-  --min_size 110 \
-  --target_shape 256 256 256
-```
 
 ## Notes
 

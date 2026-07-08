@@ -19,7 +19,7 @@ Then pass the config to `sample_xrays.py`:
 ```bash
 python sample_xrays.py \
   --config lidc_stage2_global.yaml \
-  --ckpt pretrained/lidc_stage2_global.pt \
+  --ckpt pretrained/tf_prdit_lidc.pt \
   --rotations 2 \
   --output-dir outputs_Cond \
   --new

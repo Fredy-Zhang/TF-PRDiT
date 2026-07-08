@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from models.models import DiT
 
-# Initialize the DiT_models dictionary
 DiT_models = {}
 
 def create_dit_model(
@@ -15,7 +14,18 @@ def create_dit_model(
     mlp_ratio=4.0, 
     **kwargs
 ):
-    # Define hidden sizes for different model scales
+    """Create a configured 3D DiT instance.
+
+    Args:
+        size: Model scale key, one of ``XS``, ``S``, ``B``, ``L``, or ``XL``.
+        patch_size: Cubic patch size used by the patch extractor.
+        depth: Number of transformer refinement blocks.
+        stride: Patch extraction stride.
+        padding: Reflect padding before patch extraction.
+        num_heads: Number of transformer attention heads.
+        mlp_ratio: MLP expansion ratio in transformer blocks.
+        **kwargs: Additional ``DiT`` constructor arguments.
+    """
     hidden_sizes = {
         "XS": 192,
         "S": 384,
@@ -41,19 +51,18 @@ def create_dit_model(
     )
 
 def register_dit_model(name, **model_args):
+    """Register a named DiT factory in ``DiT_models``."""
     def model_fn(**kwargs):
         return create_dit_model(**model_args, **kwargs)
     
-    # Add to DiT_models dictionary
     DiT_models[name] = model_fn
     return model_fn
 
 def load_model(config):
-    # Check if the model name is in the DiT models dictionary
+    """Instantiate the model described by a loaded YAML config."""
     if config.model.name not in DiT_models:
         raise ValueError(f"Model name {config.model.name} is not recognized.")
     
-    # Check if the model name is in the BiXT models dictionary
     return DiT_models[config.model.name](
         input_size=config.data.image_size,
         in_channels=config.model.in_channels,
@@ -72,6 +81,7 @@ def register_all_dit_models(
     depths: list[int] = (0, 1, 2, 3, 4, 8, 10, 12),
     mlp_ratio: float = 4.0,
 ):
+    """Register the DiT model names supported by the config files."""
     for P in patch_sizes:
         padding = (P - stride) // 2
         for size, num_heads in sizes_num_heads:
@@ -88,18 +98,3 @@ def register_all_dit_models(
                 )
 
 register_all_dit_models()
-
-# Register XS models with patch size 12
-register_dit_model("DiT-XS/12/0", size="XS", patch_size=12, depth=0, stride=8, 
-                   padding=2, num_heads=6, mlp_ratio=4.0)
-register_dit_model("DiT-XS/12/1", size="XS", patch_size=12, depth=1, stride=8, 
-                   padding=2, num_heads=6, mlp_ratio=4.0)
-register_dit_model("DiT-XS/12/2", size="XS", patch_size=12, depth=2, stride=8, 
-                   padding=2, num_heads=6, mlp_ratio=4.0)
-
-# Popular patch size 4 models for high-resolution tasks
-register_dit_model("DiT-XS/4/0", size="XS", patch_size=4, depth=0, stride=4, padding=0,
-                   num_heads=6, mlp_ratio=4.0)
-register_dit_model("DiT-XS/4/1", size="XS", patch_size=4, depth=1, stride=2, padding=0,
-                   num_heads=6, mlp_ratio=4.0)
-
