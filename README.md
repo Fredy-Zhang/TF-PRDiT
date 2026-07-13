@@ -46,9 +46,12 @@ datasets/                 Dataset loaders
 diffusion/                Image-and-Noise diffusion and X-ray guided sampler
 models/                   3D DiT model definitions
 pretrained/               Pretrained checkpoint download instructions
-scripts/                  Dataset download and utility scripts
+scripts/                  Dataset download, utilities, and the evaluation suite
 sample_xrays.py           Sparse X-ray-to-CT conditional sampling
 utils/download.py         Checkpoint loading helper
+utils/metrics.py          HU conversion and tissue-band MAE/RMSE
+utils/seg_metrics.py      TotalSegmentator metrics: Dice, IoU, HD95, ASSD, HU error
+EVALUATION.md             How to run and read the evaluation
 ```
 
 ## Download Dataset
@@ -190,12 +193,57 @@ View selection follows `conds/ct2xrays.py`:
 
 The current sampler generates DRR/X-ray conditions from the CT volume in the dataset for each sample. To change the number of conditioning X-rays, change `--rotations`.
 
+## Evaluation
+
+`sample_xrays.py` reports MSE / PSNR / SSIM / SNR. Those say how close the voxels
+are; they do not say whether the anatomy survived. A chest CT is ~30 % air and
+~29 % homogeneous soft tissue, so a global error is dominated by voxels nobody
+reads, and it cannot tell you that the bone is 100 HU too dark or that the trachea
+was filled in with soft tissue.
+
+The evaluation suite adds clinically interpretable metrics. It segments the
+reconstruction and the real CT **independently** with
+[TotalSegmentator](https://github.com/wasserth/TotalSegmentator) and compares the
+label maps, over six structure groups (lung, airway, heart, great vessels, bone,
+esophagus):
+
+- **Structural / task-based** — **Dice**, **IoU**, HD95, ASSD, signed volume
+  error, and a detection rate. Can say a structure is in the *wrong place*.
+- **Intensity fidelity** — **MAE**, RMSE and signed **bias**, in HU, inside each
+  structure. Bias is the informative one: it reveals systematic under-prediction
+  that a symmetric MAE hides.
+
+```bash
+pip install TotalSegmentator
+export TOTALSEG_HOME_DIR=$HOME/.totalsegmentator   # needed on nodes with no egress
+
+# check the setup before trusting any number (spacing, axis order, metric maths)
+python scripts/validate_eval_setup.py --with-segmentation
+
+# segment the real test CTs once; everything else reuses this cache
+python scripts/segment_real_testset.py --out-dir results/seg_real_128
+
+# evaluate one run, or several at once -- this is how you get a view sweep
+python scripts/evaluate_segmentation.py \
+    --run 1view=outputs_1view --run 2view=outputs_2views --run 4view=outputs_4views \
+    --out results/views.csv
+python scripts/summarize_evaluation.py --csv results/views.csv
+```
+
+Segmentation needs a GPU; the tables do not. **Read Dice against
+`scripts/eval_ceiling.py`, not against 1.0** — the 128³ grid alone costs the
+segmenter a lot of overlap (bone tops out near 0.82). See
+[EVALUATION.md](EVALUATION.md) for how to read the numbers, and for the reasons
+that reference is a *scale* and not an upper bound.
+
 ## Useful Commands
 
 ```bash
 python scripts/download_lidc_idri.py --help
 python sample_xrays.py --help
 python scripts/ct2xrays.py --help
+python scripts/evaluate_segmentation.py --help
+python scripts/validate_eval_setup.py --help
 ```
 
 ## Citation

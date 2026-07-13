@@ -9,6 +9,21 @@ This folder lists the maintained helper scripts needed for the sampling workflow
 | `download_lidc_idri.py` | Download the X2CT-GAN preprocessed LIDC-IDRI HDF5 dataset. |
 | `ct2xrays.py` | Generate DRR/X-ray projections from CT volumes with DiffDRR. |
 
+## Evaluation
+
+TotalSegmentator-based structural metrics (Dice, IoU, HD95, ASSD) and HU intensity
+metrics (MAE, RMSE, bias). See [../EVALUATION.md](../EVALUATION.md) for how to read
+them — in particular why Dice must not be read against 1.0. Run them in this order.
+
+| Script | Purpose |
+|---|---|
+| `validate_eval_setup.py` | Assert the assumptions the metrics rest on (spacing, axis order, metric maths). Run first; a wrong axis still segments happily. |
+| `segment_real_testset.py` | Segment the real test CTs once and cache the labels. Every comparison reuses this. |
+| `evaluate_segmentation.py` | The main entry point: segment each run's volumes and score them against the real CT. Repeat `--run` for a view sweep. |
+| `summarize_evaluation.py` | Aggregate the per-case CSV into the paper tables. No GPU. |
+| `eval_ceiling.py` | What the 128³ grid alone costs the segmenter — the scale Dice should be read against. |
+| `eval_data.py` | Shared loaders (module, not an entry point). |
+
 ## LIDC-IDRI Dataset Source
 
 For this project, use the **LIDC-IDRI dataset released with the X2CT-GAN GitHub project**. That version already follows the X2CT pipeline, including the bed/table stripping step, so the TF-PRDiT dataloader can load the HDF5 files directly. This avoids subtle mismatches from re-running a different local preprocessing pipeline.
