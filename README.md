@@ -4,7 +4,9 @@ Official code for **From Sparse X-rays to 3D CT: Training-Free Reconstruction wi
 
 TF-PRDiT uses a pretrained 3D diffusion prior for sparse X-ray-to-CT reconstruction. This repository README is focused on the inference workflow: download the dataset, download pretrained weights, and run conditional sampling with different numbers of X-ray views.
 
-Paper: [arXiv:2606.20763](https://arxiv.org/abs/2606.20763)
+Accepted at the **6th Deep Generative Models Workshop, MICCAI 2026**.
+
+Paper: [OpenReview](https://openreview.net/forum?id=YbePHjhsMO) | [arXiv:2606.20763](https://arxiv.org/abs/2606.20763)
 
 <p align="center">
   <img src="assets/x2ct.png" alt="X-ray-to-CT reconstruction results across axial, coronal, and sagittal views." width="920">
@@ -213,6 +215,14 @@ esophagus):
   structure. Bias is the informative one: it reveals systematic under-prediction
   that a symmetric MAE hides.
 
+The example below compares independently segmented anatomy from the reference CT,
+TF-PRDiT (ours), and X2CT-GAN under one- and two-view reconstruction settings.
+All renderings use the same anterior viewpoint, camera, and scale.
+
+<p align="center">
+  <img src="assets/evaluation_method_comparison.png" alt="Anterior 3D anatomical segmentation comparison between the real CT, TF-PRDiT with one and two X-ray views, and X2CT-GAN with one and two X-ray views." width="1000">
+</p>
+
 ```bash
 pip install TotalSegmentator
 export TOTALSEG_HOME_DIR=$HOME/.totalsegmentator   # needed on nodes with no egress
@@ -249,12 +259,11 @@ python scripts/validate_eval_setup.py --help
 ## Citation
 
 ```bibtex
-@misc{zhang2026tfprdit,
+@inproceedings{zhang2026from,
   title={From Sparse X-rays to 3D CT: Training-Free Reconstruction with Diffusion Priors},
-  author={Zhang, Zhenkai and Hiller, Markus and Ehinger, Krista A. and Drummond, Tom},
+  author={Zhenkai Zhang and Markus Hiller and Krista A. Ehinger and Tom Drummond},
+  booktitle={6th Deep Generative Models Workshop for MICCAI 2026},
   year={2026},
-  eprint={2606.20763},
-  archivePrefix={arXiv},
-  primaryClass={eess.IV}
+  url={https://openreview.net/forum?id=YbePHjhsMO}
 }
 ```
