@@ -106,22 +106,17 @@ Relevant config files:
 
 ## Download Pretrained Weights
 
-Place the released TF-PRDiT sampling checkpoint in `pretrained/`.
+Download the released TF-PRDiT sampling checkpoint from the
+[pretrained weights folder on Google Drive](https://drive.google.com/drive/folders/1nWWjnogMB_H6tNuBJfSwzeccak2RUIig?usp=sharing)
+and place it in `pretrained/`.
 
-```bash
-mkdir -p pretrained
-
-curl -L "<TF_PRDIT_LIDC_CHECKPOINT_URL>" \
-  -o pretrained/tf_prdit_lidc.pt
-```
-
-If the checkpoint is hosted on Google Drive:
+To download the shared folder from the command line:
 
 ```bash
 pip install gdown
 
-gdown --fuzzy "<TF_PRDIT_LIDC_GOOGLE_DRIVE_URL>" \
-  -O pretrained/tf_prdit_lidc.pt
+gdown --folder "https://drive.google.com/drive/folders/1nWWjnogMB_H6tNuBJfSwzeccak2RUIig" \
+  -O pretrained
 ```
 
 See [pretrained/README.md](pretrained/README.md) for the checkpoint folder convention.
