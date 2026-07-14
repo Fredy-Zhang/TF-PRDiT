@@ -50,6 +50,7 @@ models/                   3D DiT model definitions
 pretrained/               Pretrained checkpoint download instructions
 scripts/                  Dataset download, utilities, and the evaluation suite
 sample_xrays.py           Sparse X-ray-to-CT conditional sampling
+sample_downstream.py      Super-resolution, infilling, and deblurring sampling
 utils/download.py         Checkpoint loading helper
 utils/metrics.py          HU conversion and tissue-band MAE/RMSE
 utils/seg_metrics.py      TotalSegmentator metrics: Dice, IoU, HD95, ASSD, HU error
@@ -106,44 +107,68 @@ python sample_xrays.py \
   --no-save-intermediate
 ```
 
-## Change X-ray View Number
-
-The number of input X-ray views is controlled by `--rotations`.
+Run the other volumetric inverse problems with the same frozen checkpoint:
 
 ```bash
-# One X-ray view
-python sample_xrays.py \
-  --config lidc_stage2_global.yaml \
+# 4x volumetric super-resolution
+python sample_downstream.py \
+  --task super_resolution \
+  --config lidc_downstream_super_resolution.yaml \
   --ckpt pretrained/tf_prdit_lidc.pt \
+  --scale-factor 4 \
   --num-samples 10 \
-  --rotations 1 \
-  --output-dir outputs_1view \
+  --output-dir outputs_super_resolution \
   --new
 
-# Two orthogonal X-ray views, default paper-style setting
-python sample_xrays.py \
-  --config lidc_stage2_global.yaml \
+# Fill a centered region occupying 50% of each spatial dimension
+python sample_downstream.py \
+  --task infilling \
+  --config lidc_downstream_infilling.yaml \
   --ckpt pretrained/tf_prdit_lidc.pt \
+  --mask-type center \
+  --mask-ratio 0.5 \
   --num-samples 10 \
-  --rotations 2 \
-  --output-dir outputs_2views \
+  --output-dir outputs_infilling \
   --new
 
-# Four X-ray views
-python sample_xrays.py \
-  --config lidc_stage2_global.yaml \
+# 3D Gaussian deblurring
+python sample_downstream.py \
+  --task deblurring \
+  --config lidc_downstream_deblurring.yaml \
   --ckpt pretrained/tf_prdit_lidc.pt \
+  --blur-kernel-size 5 \
+  --blur-sigma 2.0 \
   --num-samples 10 \
-  --rotations 4 \
-  --output-dir outputs_4views \
+  --output-dir outputs_deblurring \
   --new
 ```
 
-View selection follows `conds/ct2xrays.py`:
+Task-specific operator settings are documented in the corresponding YAML files
+under `configs/`; command-line values control the current run.
 
-- `--rotations 1`: one frontal view.
-- `--rotations 2`: two orthogonal views at `0` and `90` degrees.
-- `--rotations N` where `N > 2`: keeps `0` and `90` degrees and fills the remaining views across the rotation range.
+## Change X-ray View Number
+
+Set `VIEWS` to the desired number of input X-rays and run the same command:
+
+```bash
+VIEWS=2
+
+python sample_xrays.py \
+  --config lidc_stage2_global.yaml \
+  --ckpt pretrained/tf_prdit_lidc.pt \
+  --num-samples 10 \
+  --rotations "$VIEWS" \
+  --output-dir "outputs_${VIEWS}views" \
+  --new
+```
+
+Common settings:
+
+| `VIEWS` | View selection |
+|---:|---|
+| `1` | One frontal view |
+| `2` | Orthogonal views at 0° and 90° (default paper setting) |
+| `N > 2` | Keeps 0° and 90° and distributes the remaining views across the rotation range |
 
 The current sampler generates DRR/X-ray conditions from the CT volume in the dataset for each sample. To change the number of conditioning X-rays, change `--rotations`.
 

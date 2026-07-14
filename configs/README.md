@@ -37,4 +37,4 @@ The downstream config templates keep the same pretrained LIDC prior and add an e
 | `configs/lidc_downstream_infilling.yaml` | Volumetric infilling |
 | `configs/lidc_downstream_deblurring.yaml` | Volumetric deblurring |
 
-These configs define operator settings such as super-resolution scale, infilling mask, and blur kernel. They are intended for the downstream sampling path that uses the same frozen prior with a different measurement operator.
+These configs define operator settings such as super-resolution scale, infilling mask, and blur kernel. Run them with `sample_downstream.py`, which uses the same frozen prior with a different measurement operator. Command-line task options control the current run; the YAML `downstream` sections record the recommended defaults.

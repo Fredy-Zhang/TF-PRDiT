@@ -8,6 +8,7 @@ from glob import glob
 from typing import Any, Tuple, Optional, Dict
 
 import numpy as np
+import nibabel as nib
 import torch
 import torch.distributed as dist
 import wandb
@@ -20,6 +21,13 @@ from datasets.lidc import (GLOBAL_MEAN,
                            GLOBAL_STD, 
                            data_transform_forward, 
                            data_transform_backward)
+
+
+def save_reference_volume(volume: torch.Tensor, save_dir: str, name: str) -> None:
+    """Save a reference volume as a NIfTI file."""
+    os.makedirs(save_dir, exist_ok=True)
+    volume_np = volume.detach().cpu().squeeze().numpy()
+    nib.save(nib.Nifti1Image(volume_np, np.eye(4)), os.path.join(save_dir, f"{name}.nii.gz"))
 
 
 def normalize_image(image: np.ndarray) -> np.ndarray:

@@ -21,6 +21,9 @@ model:
   pretrained_path: "pretrained/tf_prdit_lidc.pt"
   flash_attn: true
 
+training:
+  seed: 192
+
 sampling:
   num_sampling_steps: 1000
   output_dir: "outputs_super_resolution"
