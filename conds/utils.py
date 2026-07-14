@@ -4,6 +4,7 @@ import math
 import random
 import warnings
 import logging
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -869,17 +870,31 @@ def save_xrays(
 
 def create_val_loader(config: Dict[str, Any], data_type="val") -> Any:
     to_3tuple = _ntuple(3)
+    repo_root = Path(__file__).resolve().parents[1]
+
+    def resolve_split_path(path: str) -> str:
+        split_path = Path(path).expanduser()
+        if not split_path.is_absolute():
+            split_path = repo_root / split_path
+        return str(split_path.resolve())
+
+    train_txt = resolve_split_path(config.data.train_txt)
+    test_txt = resolve_split_path(config.data.test_txt)
     logger.info(f"Creating validation dataset loader for task: {config.data.task}")
     logger.info(f"Creating validation dataset loader for path: {config.data.path}")
     logger.info(f"Creating validation dataset loader for image size: {config.data.image_size}")
     logger.info(f"Creating validation dataset loader for seed: {config.training.seed}")
     logger.info(f"Creating validation dataset loader for augment: {config.data.augment}")
+    logger.info(f"Using training split list: {train_txt}")
+    logger.info(f"Using test split list: {test_txt}")
     return get_voxel_dataset(
         config.data.path,
         task=config.data.task,
         config=config,
         roi_size=to_3tuple(config.data.image_size),
         data_type=data_type,
+        train_txt=train_txt,
+        test_txt=test_txt,
         seed=config.training.seed,
         augment=False,
     )

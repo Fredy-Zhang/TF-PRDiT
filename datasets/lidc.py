@@ -258,6 +258,12 @@ class LIDCVolumes(torch.utils.data.Dataset):
     
     def _load_sample_lists(self, train_txt, test_txt):
         """Load train and test sample ID lists."""
+        for split_name, split_path in (("training", train_txt), ("test", test_txt)):
+            if not os.path.isfile(split_path):
+                raise FileNotFoundError(
+                    f"LIDC {split_name} split list not found: {split_path}. "
+                    "Set data.train_txt and data.test_txt in the selected config."
+                )
         with open(train_txt, 'r') as f:
             train_samples = [line.strip() for line in f.readlines()]
         with open(test_txt, 'r') as f:
