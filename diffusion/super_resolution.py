@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 from conds.utils import save_middle_slices
-from util import save_reference_volume
 
 
 def _save_single(data: np.ndarray, path: str, cmap: str = 'gray', colorbar: bool = False) -> None:
@@ -380,13 +379,6 @@ class IaNDiffusion:
                             _save_single(slc, os.path.join(grad_dir, f'grad_{vl}_{i}_{idx}.png'),
                                          cmap='hot', colorbar=True)
 
-                        if config.save_detailed and ref_vol is not None:
-                            ref_dir = os.path.join(sample_dir, "reference")
-                            save_reference_volume(
-                                ref_vol,
-                                ref_dir,
-                                name=f"{i}_{idx}_reference_volume"
-                            )
             else:
                 # No guidance path
                 with th.no_grad():

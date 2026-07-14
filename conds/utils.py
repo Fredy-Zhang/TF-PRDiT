@@ -520,20 +520,24 @@ def initialize_paths(args: Any, config: Dict[str, Any], device: str) -> List[str
     debug_dir = os.path.join(output_base, "debug")
     samples_dir = os.path.join(output_base, "samples")
     conditions_dir = os.path.join(output_base, "conditions")
-    xray_verification_dir = os.path.join(output_base, "xray_verification")
-    
-    for d in [output_base, debug_dir, samples_dir, conditions_dir, xray_verification_dir]:
-        os.makedirs(d, exist_ok=True)
+    task = getattr(args, "task", None)
+    verification_name = "xray_verification" if task in (None, "xray") else "verification"
+    verification_dir = os.path.join(output_base, verification_name)
+
+    # Create only directories required immediately. Debug, condition, and
+    # verification directories are created lazily when a file is saved.
+    os.makedirs(samples_dir, exist_ok=True)
         
     log_level = logging.INFO if getattr(args, "verbose", False) else logging.ERROR
-    logging.basicConfig(
-        level=log_level,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(os.path.join(output_base, 'generation.log')),
-            logging.StreamHandler()
-        ]
-    )
+    if getattr(args, "verbose", False):
+        logging.basicConfig(
+            level=log_level,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler(os.path.join(output_base, 'generation.log')),
+                logging.StreamHandler()
+            ]
+        )
     logger = logging.getLogger(__name__)
     logger.setLevel(log_level)
     
@@ -546,7 +550,7 @@ def initialize_paths(args: Any, config: Dict[str, Any], device: str) -> List[str
     logger.info(f"Samples directory: {samples_dir}")
     logger.info(f"Conditions directory: {conditions_dir}")
     
-    return [output_base, debug_dir, samples_dir, conditions_dir, xray_verification_dir, logger]
+    return [output_base, debug_dir, samples_dir, conditions_dir, verification_dir, logger]
 
 def save_middle_slices(
     volume: torch.Tensor, 

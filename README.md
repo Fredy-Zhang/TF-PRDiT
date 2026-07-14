@@ -90,8 +90,7 @@ python sample_xrays.py \
   --num-samples 100 \
   --num-sampling-steps 1000 \
   --rotations 2 \
-  --output-dir outputs_Cond \
-  --new
+  --output-dir outputs_Cond
 ```
 
 Use metrics-only mode to avoid saving intermediate PNG/NIfTI files:
@@ -103,7 +102,6 @@ python sample_xrays.py \
   --num-samples 100 \
   --rotations 2 \
   --output-dir outputs_metrics \
-  --new \
   --no-save-intermediate
 ```
 
@@ -150,6 +148,11 @@ is required. Console output is quiet by default; add `--verbose` to show model,
 dataset, and per-step diagnostics. Empty output directories are removed
 automatically after each run.
 
+Downstream runs store task checks under `verification/`; the
+`xray_verification/` directory is reserved for X-ray reconstruction runs.
+Each sample stores one reference CT and three reference preview slices; the
+samplers do not duplicate the same reference volume at intermediate timesteps.
+
 ## Change X-ray View Number
 
 Set `VIEWS` to the desired number of input X-rays and run the same command:
@@ -162,8 +165,7 @@ python sample_xrays.py \
   --ckpt pretrained/tf_prdit_lidc.pt \
   --num-samples 10 \
   --rotations "$VIEWS" \
-  --output-dir "outputs_${VIEWS}views" \
-  --new
+  --output-dir "outputs_${VIEWS}views"
 ```
 
 Common settings:

@@ -112,7 +112,7 @@ def main():
                         clip_denoised=False,
                         progress=False,  # Disable internal progress bar
                         device=device,
-                        new_sampling=args.new,
+                        new_sampling=True,
                         model_kwargs={"y": None} if config.model.num_classes else {}
                     )
                 except Exception as e:
@@ -180,8 +180,6 @@ def parse_args():
                         help="Number of sampling steps")
     parser.add_argument("--output-dir", type=str, default="samples",
                         help="Directory to save samples")
-    parser.add_argument("--new", action="store_true",
-                        help="Using the new sampling schema or not.")
     parser.add_argument("--verbose", action="store_true",
                         help="Print detailed statistics during sampling")
     return parser.parse_args()
@@ -202,5 +200,5 @@ Usage Examples:
     
     # High-quality sampling with more steps:
     python sample.py --config lidc_stage2_global.yaml --ckpt path/to/checkpoint.pt \
-                     --num-sampling-steps 1000 --new
+                     --num-sampling-steps 1000
 """

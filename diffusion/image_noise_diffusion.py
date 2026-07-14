@@ -92,21 +92,6 @@ def save_individual_xrays(
         )
 
 
-def save_reference_volume(volume: torch.Tensor, save_dir: str, name: str) -> None:
-    """Save a reference CT volume as a NIfTI file.
-
-    Args:
-        volume: CT tensor with optional batch/channel dimensions.
-        save_dir: Directory where the ``.nii.gz`` file is written.
-        name: Output filename stem without extension.
-    """
-    import nibabel as nib
-
-    os.makedirs(save_dir, exist_ok=True)
-    vol_np = volume.detach().cpu().squeeze().numpy()
-    nib.save(nib.Nifti1Image(vol_np, np.eye(4)), os.path.join(save_dir, f"{name}.nii.gz"))
-
-
 class _BaseIaNDiffusion:
     """Shared Image-and-Noise diffusion math.
 
@@ -715,13 +700,6 @@ class XrayGuidedIaNDiffusion(_BaseIaNDiffusion):
             os.path.join(xray_save_dir, "reference"),
             prefix=f"{timestep}_{idx}",
         )
-        if ref_vol is not None:
-            save_reference_volume(
-                ref_vol,
-                os.path.join(sample_dir, "reference"),
-                name=f"{timestep}_{idx}_reference_volume",
-            )
-
     def _save_final_xrays(
         self,
         final_ct: torch.Tensor,

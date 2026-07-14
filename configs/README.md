@@ -21,8 +21,7 @@ python sample_xrays.py \
   --config lidc_stage2_global.yaml \
   --ckpt pretrained/tf_prdit_lidc.pt \
   --rotations 2 \
-  --output-dir outputs_Cond \
-  --new
+  --output-dir outputs_Cond
 ```
 
 Use `--rotations` to choose the number of conditioning X-ray views.

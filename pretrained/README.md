@@ -39,6 +39,5 @@ python sample_xrays.py \
   --ckpt pretrained/tf_prdit_lidc.pt \
   --num-samples 100 \
   --rotations 2 \
-  --output-dir outputs_Cond \
-  --new
+  --output-dir outputs_Cond
 ```

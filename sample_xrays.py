@@ -61,7 +61,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ckpt", type=str, default="results/001-DiT-B-12-12/checkpoints/013000.pt", help="Model checkpoint path")
     parser.add_argument("--num-sampling-steps", type=int, default=1000, help="Sampling steps")
     parser.add_argument("--output-dir", type=str, default="outputs_Cond", help="Output directory")
-    parser.add_argument("--new", action="store_true", help="Use new sampling schema")
     parser.add_argument("--rotations", type=int, default=2, help="Number of rotations")
     parser.add_argument("--num-save-samples", type=int, default=102, help="Number of samples to save to disk (to limit log size)")
     parser.add_argument("--no-save-intermediate", action="store_true", help="Disable saving intermediate images and volumes (only compute metrics)")
@@ -142,7 +141,7 @@ def generate_diffusion_samples(
         idx=idx,
         ref_vol=datarow[0].to(device),
         device=device,
-        new_sampling=args.new,
+        new_sampling=True,
         rotations=args.rotations,
         sample_dir=sample_dir,
         model_kwargs={"y": None} if config.model.num_classes else {}
@@ -858,17 +857,17 @@ if __name__ == "__main__":
 """
 Commands:
     # Single GPU sampling (default - saves all intermediate files):
-    python sample_xrays.py --config lidc_stage2_global.yaml --ckpt results/001-DiT-XL-12-12/checkpoints/019000.pt --num-samples 1 --output-dir xrays_samples --new
-    python sample_xrays.py --config lidc_stage2_global.yaml --ckpt results/001-DiT-XL-12-12/checkpoints/004000.pt --num-samples 1 --output-dir xrays_samples --new
+    python sample_xrays.py --config lidc_stage2_global.yaml --ckpt results/001-DiT-XL-12-12/checkpoints/019000.pt --num-samples 1 --output-dir xrays_samples
+    python sample_xrays.py --config lidc_stage2_global.yaml --ckpt results/001-DiT-XL-12-12/checkpoints/004000.pt --num-samples 1 --output-dir xrays_samples
 
     # Metrics-only mode (no intermediate files, for random seed experiments):
-    python sample_xrays.py --config lidc_stage2_global.yaml --ckpt results/001-DiT-XL-12-12/checkpoints/019000.pt --num-samples 100 --output-dir metrics_only --new --no-save-intermediate
+    python sample_xrays.py --config lidc_stage2_global.yaml --ckpt results/001-DiT-XL-12-12/checkpoints/019000.pt --num-samples 100 --output-dir metrics_only --no-save-intermediate
     
     # Metrics-only mode but save PNGs (no NIfTI files):
-    python sample_xrays.py --config lidc_stage2_global.yaml --ckpt results/001-DiT-XL-12-12/checkpoints/019000.pt --num-samples 100 --output-dir metrics_with_png --new --no-save-intermediate --save-png
+    python sample_xrays.py --config lidc_stage2_global.yaml --ckpt results/001-DiT-XL-12-12/checkpoints/019000.pt --num-samples 100 --output-dir metrics_with_png --no-save-intermediate --save-png
     
     # Metrics-only mode but save NIfTI files (no PNGs):
-    python sample_xrays.py --config lidc_stage2_global.yaml --ckpt results/001-DiT-XL-12-12/checkpoints/019000.pt --num-samples 100 --output-dir metrics_with_nifti --new --no-save-intermediate --save-nifti
+    python sample_xrays.py --config lidc_stage2_global.yaml --ckpt results/001-DiT-XL-12-12/checkpoints/019000.pt --num-samples 100 --output-dir metrics_with_nifti --no-save-intermediate --save-nifti
 
     # Distributed sampling:
     torchrun --nproc_per_node=8 sample_xrays.py --config configs/dit_base.py --num-samples 4 --output-dir samples --distributed

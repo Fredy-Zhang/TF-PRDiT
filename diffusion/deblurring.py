@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 from conds.utils import save_middle_slices
-from util import save_reference_volume
 
 
 def apply_blur_3d(volume: th.Tensor, kernel_size: int = 5, sigma: float = 2.0) -> th.Tensor:
@@ -397,13 +396,6 @@ class IaNDiffusion:
                             save_dir=deblur_dir,
                         )
                         
-                        if config.save_detailed and ref_vol is not None:
-                            ref_dir = os.path.join(sample_dir, "reference")
-                            save_reference_volume(
-                                ref_vol,
-                                ref_dir,
-                                name=f"{i}_{idx}_reference_volume"
-                            )
             else:
                 # No guidance path
                 with th.no_grad():

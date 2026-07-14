@@ -183,8 +183,7 @@ else
     --num-sampling-steps "${NUM_SAMPLING_STEPS}" \
     --num-samples "${UNCOND_BATCH_SIZE}" \
     --total-samples "${UNCOND_TOTAL_SAMPLES}" \
-    --output-dir "${UNCOND_OUTPUT_DIR}" \
-    --new
+    --output-dir "${UNCOND_OUTPUT_DIR}"
 fi
 
 if [[ "${SKIP_COND}" == "1" ]]; then
@@ -204,7 +203,6 @@ else
     --num-save-samples "${COND_NUM_SAVE_SAMPLES}" \
     --rotations "${ROTATIONS}" \
     --output-dir "${COND_OUTPUT_DIR}" \
-    --new \
     "${COND_ARGS[@]}"
 fi
 
