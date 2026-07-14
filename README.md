@@ -58,51 +58,8 @@ EVALUATION.md             How to run and read the evaluation
 
 ## Download Dataset
 
-For LIDC-IDRI, use the preprocessed HDF5 dataset released with the **X2CT-GAN GitHub project**. That release already follows the X2CT pipeline and includes the bed/table stripping expected by this codebase.
-
-Download the archive with:
-
-```bash
-python scripts/download_lidc_idri.py \
-  --url "PASTE_X2CT_GAN_LIDC_DATASET_ARCHIVE_URL_HERE" \
-  --out /path/to/data_root \
-  --archive-name LIDC-HDF5-256.zip
-```
-
-Expected extracted layout:
-
-```text
-/path/to/data_root/
-  LIDC-HDF5-256/
-    <case_id>/
-      ct_xray_data.h5
-```
-
-or:
-
-```text
-/path/to/data_root/
-  LIDC-HDF5-256/
-    <case_id>_ct_xray_data.h5
-```
-
-The HDF5 files should contain:
-
-- `ct`
-- `xray1`
-- `xray2`
-
-Then set the dataset location in the LIDC configs:
-
-```yaml
-data:
-  path: "/path/to/data_root"
-  target_path: "LIDC-HDF5-256"
-```
-
-Relevant config files:
-
-- `configs/lidc_stage2_global.yaml`
+See [datasets/README.md](datasets/README.md) for the LIDC-IDRI download,
+expected HDF5 layout, and configuration instructions.
 
 ## Download Pretrained Weights
 
