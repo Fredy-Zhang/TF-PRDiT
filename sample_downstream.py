@@ -6,6 +6,7 @@ Supported tasks:
 - Deblurring (deblurring)
 """
 import argparse
+from contextlib import contextmanager, redirect_stdout
 import json
 import logging
 import os
@@ -23,12 +24,28 @@ from conds.utils import compute_volume_metrics, create_val_loader, initialize_pa
 from datasets.lidc import data_transform_backward
 from utils.download import find_model
 from models import DiT_models
-from util import evaluation_metrics, load_config, normalize_image, save_evaluation_samples
+from util import (
+    evaluation_metrics,
+    load_config,
+    normalize_image,
+    remove_empty_directories,
+    save_evaluation_samples,
+)
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
 DEBUG = True
+
+
+@contextmanager
+def quiet_stdout(enabled: bool):
+    """Suppress noisy third-party/task diagnostics while keeping progress bars."""
+    if not enabled:
+        yield
+        return
+    with open(os.devnull, "w") as sink, redirect_stdout(sink):
+        yield
 
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
@@ -45,9 +62,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-samples", type=int, default=102, help="Number of samples")
     parser.add_argument("--num-sampling-steps", type=int, default=1000, help="Sampling steps")
     parser.add_argument("--output-dir", type=str, default="outputs_Cond", help="Output directory")
-    
-    # Sampling options
-    parser.add_argument("--new", action="store_true", help="Use new sampling schema with guidance")
     
     # Task-specific arguments
     parser.add_argument("--mask-ratio", type=float, default=0.5, help="[Infilling] Ratio of masked regions")
@@ -67,6 +81,8 @@ def parse_args() -> argparse.Namespace:
                        help="Disable saving intermediate images and volumes")
     parser.add_argument("--save-nifti", action="store_true", help="Save NIfTI files")
     parser.add_argument("--save-png", action="store_true", help="Save PNG images")
+    parser.add_argument("--verbose", action="store_true",
+                       help="Show model, dataset, and per-step diagnostic logs")
     
     args = parser.parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
@@ -113,7 +129,10 @@ def setup_diffusion(args: argparse.Namespace, logger: logging.Logger):
     else:
         raise ValueError(f"Unknown task: {args.task}")
     
-    return IaNDiffusion(timestep_respacing=str(args.num_sampling_steps), loss_type="l2")
+    diffusion = IaNDiffusion(timestep_respacing=str(args.num_sampling_steps), loss_type="l2")
+    diffusion.config.debug = args.verbose
+    diffusion.config.save_detailed = args.verbose
+    return diffusion
 
 
 def setup_data(config: Dict[str, Any], device: th.device, 
@@ -258,7 +277,7 @@ def generate_diffusion_samples(
         "idx": idx,
         "ref_vol": datarow[0].to(device),
         "device": device,
-        "new_sampling": args.new,
+        "new_sampling": True,
         "sample_dir": sample_dir,
         "model_kwargs": {"y": None} if config.model.num_classes else {}
     }
@@ -336,10 +355,11 @@ def generate_conditional_samples(
             )
         
         # Generate samples
-        samples = generate_diffusion_samples(
-            model, diffusion, conditions, mask,
-            idx, datarow, args, config, device, sample_dir
-        )
+        with quiet_stdout(not args.verbose):
+            samples = generate_diffusion_samples(
+                model, diffusion, conditions, mask,
+                idx, datarow, args, config, device, sample_dir
+            )
         
         # Save results
         if should_save_intermediate:
@@ -363,7 +383,7 @@ def generate_conditional_samples(
         samples = th.clamp(samples, 0.0, 1.0)
         datarow = data_transform_backward(datarow)
         
-        metrics = evaluation_metrics(datarow, samples, verbose=True)
+        metrics = evaluation_metrics(datarow, samples, verbose=args.verbose)
         volume_metrics.append(metrics)
         
         generation_time = time.time() - start_time
@@ -372,12 +392,14 @@ def generate_conditional_samples(
         if sample_dir:
             save_sample_metrics(metrics, sample_dir, idx, generation_time, 
                               condition_times[-1] if condition_times else 0)
+            remove_empty_directories(sample_dir)
         
         log_sample_progress(idx, select_idxs, generation_times, 
                           condition_times, metrics, logger)
     
     log_final_statistics(select_idxs, generation_times, condition_times, 
                         volume_metrics, output_base, logger)
+    remove_empty_directories(output_base)
 
 
 def save_task_conditions(
@@ -735,11 +757,17 @@ def main() -> None:
     
     output_base, debug_dir, samples_dir, conditions_dir, verification_dir, logger = \
         initialize_paths(args, config, device)
+
+    if not args.verbose:
+        logging.disable(logging.CRITICAL)
+        logging.getLogger("LIDCVolumes").disabled = True
     
     logger.info(f"Task: {args.task}")
-    model = load_model(config, args, device, logger)
+    with quiet_stdout(not args.verbose):
+        model = load_model(config, args, device, logger)
     diffusion = setup_diffusion(args, logger)
-    dataset = setup_data(config, device, logger, debug_dir)
+    with quiet_stdout(not args.verbose):
+        dataset = setup_data(config, device, logger, debug_dir)
     
     generate_conditional_samples(
         dataset, model, diffusion, 

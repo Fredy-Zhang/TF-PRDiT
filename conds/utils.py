@@ -525,8 +525,9 @@ def initialize_paths(args: Any, config: Dict[str, Any], device: str) -> List[str
     for d in [output_base, debug_dir, samples_dir, conditions_dir, xray_verification_dir]:
         os.makedirs(d, exist_ok=True)
         
+    log_level = logging.INFO if getattr(args, "verbose", False) else logging.ERROR
     logging.basicConfig(
-        level=logging.INFO,
+        level=log_level,
         format='%(asctime)s - %(levelname)s - %(message)s',
         handlers=[
             logging.FileHandler(os.path.join(output_base, 'generation.log')),
@@ -534,6 +535,7 @@ def initialize_paths(args: Any, config: Dict[str, Any], device: str) -> List[str
         ]
     )
     logger = logging.getLogger(__name__)
+    logger.setLevel(log_level)
     
     with open(os.path.join(output_base, 'config.yaml'), 'w') as f:
         yaml.dump(config, f)

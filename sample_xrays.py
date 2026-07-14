@@ -1,5 +1,6 @@
 """X-ray conditional sampling from pre-trained DiT models."""
 import argparse
+from contextlib import contextmanager, redirect_stdout
 import json
 import logging
 import os
@@ -29,6 +30,7 @@ from util import (
     load_config,
     normalize_image,
     Peak_Signal_to_Noise_Rate_3D,
+    remove_empty_directories,
     save_evaluation_samples,
     Structural_Similarity,
     tensor_back_to_unMinMax,
@@ -39,6 +41,16 @@ torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
 DEBUG = True
+
+
+@contextmanager
+def quiet_stdout(enabled: bool):
+    """Suppress detailed diagnostics while preserving stderr progress bars."""
+    if not enabled:
+        yield
+        return
+    with open(os.devnull, "w") as sink, redirect_stdout(sink):
+        yield
 
 
 def parse_args() -> argparse.Namespace:
@@ -55,6 +67,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--no-save-intermediate", action="store_true", help="Disable saving intermediate images and volumes (only compute metrics)")
     parser.add_argument("--save-nifti", action="store_true", help="Save NIfTI (.nii.gz) files (disabled by default when --no-save-intermediate is set)")
     parser.add_argument("--save-png", action="store_true", help="Save PNG images (disabled by default when --no-save-intermediate is set)")
+    parser.add_argument("--verbose", action="store_true",
+                        help="Show model, dataset, DRR, and per-step diagnostic logs")
     args = parser.parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
     return args
@@ -87,7 +101,10 @@ def load_model(config: Dict[str, Any], args: argparse.Namespace, device: th.devi
 
 def setup_diffusion(args: argparse.Namespace) -> XrayGuidedIaNDiffusion:
     """Setup diffusion process with specified sampling steps."""
-    return XrayGuidedIaNDiffusion(timestep_respacing=str(args.num_sampling_steps), loss_type="l2")
+    diffusion = XrayGuidedIaNDiffusion(timestep_respacing=str(args.num_sampling_steps), loss_type="l2")
+    diffusion.config.debug = args.verbose
+    diffusion.config.save_detailed = args.verbose
+    return diffusion
 
 
 def setup_data(config: Dict[str, Any], device: th.device, logger: logging.Logger, debug_dir: str) -> Any:
@@ -171,19 +188,22 @@ def generate_conditional_samples(
         datarow = dataset[idx]["image"]
         x_rays = dataset[idx]["x_rays"]
         sample_id = dataset[idx].get("id", f"sample_{idx}")  # Extract id, fallback to idx if not available
-        print(f"Sample ID: {sample_id}")
+        if args.verbose:
+            print(f"Sample ID: {sample_id}")
         sanitized_id = sanitize_id(sample_id) if sample_id else f"sample_{idx}"
-        print(f"Sanitized ID: {sanitized_id}")
+        if args.verbose:
+            print(f"Sanitized ID: {sanitized_id}")
         # exit(0)
         if idx == 0:  # Log sample ID format for first sample
             logger.info(f"Sample ID format: original='{sample_id}' -> sanitized='{sanitized_id}'")
         
         cond_start = time.time()
-        conditions = get_xrays_from_ct(
-            datarow, idx=idx,
-            device=device,
-            rotations=args.rotations
-        )
+        with quiet_stdout(not args.verbose):
+            conditions = get_xrays_from_ct(
+                datarow, idx=idx,
+                device=device,
+                rotations=args.rotations
+            )
         condition_times.append(time.time() - cond_start)
         
         should_save_intermediate = save_intermediate and (idx < num_save_samples)
@@ -196,17 +216,20 @@ def generate_conditional_samples(
                 # Use sanitized sample_id for directory name in xray_verification_dir
                 sample_xray_dir = os.path.join(xray_verification_dir, sanitized_id)
                 os.makedirs(sample_xray_dir, exist_ok=True)
-                save_xray_verification(conditions, sample_xray_dir, idx, save_png=save_png)
-                save_reference_xrays(x_rays, sample_xray_dir, idx, save_png=save_png)
+                with quiet_stdout(not args.verbose):
+                    save_xray_verification(conditions, sample_xray_dir, idx, save_png=save_png)
+                    save_reference_xrays(x_rays, sample_xray_dir, idx, save_png=save_png)
         
-        samples = generate_diffusion_samples(
-            model, diffusion, conditions,
-            idx, datarow, args, config, device, sample_dir
-        )
+        with quiet_stdout(not args.verbose):
+            samples = generate_diffusion_samples(
+                model, diffusion, conditions,
+                idx, datarow, args, config, device, sample_dir
+            )
         
         if should_save_intermediate:
-            save_reference_data(datarow, conditions, sample_dir, save_nifti=save_nifti, save_png=save_png)
-            save_generated_samples(samples, sample_dir, config, logger, save_nifti=save_nifti, save_png=save_png)
+            with quiet_stdout(not args.verbose):
+                save_reference_data(datarow, conditions, sample_dir, save_nifti=save_nifti, save_png=save_png)
+                save_generated_samples(samples, sample_dir, config, logger, save_nifti=save_nifti, save_png=save_png)
         
         # print("="*30)
         # print(f"Output samples shape: {samples.shape}, value range: {samples.min():.6f}, {samples.max():.6f}, {samples.mean():.6f}, {samples.std():.6f}")
@@ -218,7 +241,7 @@ def generate_conditional_samples(
         
         datarow = data_transform_backward(datarow)
         
-        metrics = evaluation_metrics(datarow, samples, verbose=True)
+        metrics = evaluation_metrics(datarow, samples, verbose=args.verbose)
         volume_metrics.append(metrics)
         
         generation_time = time.time() - start_time
@@ -226,15 +249,18 @@ def generate_conditional_samples(
         
         if sample_dir:
             save_sample_metrics(metrics, sample_dir, idx, generation_time, condition_times[-1] if condition_times else 0)
+            remove_empty_directories(sample_dir)
         
         log_sample_progress(
             idx, select_idxs, generation_times, condition_times, 
             metrics, logger
         )
     
-    log_final_statistics(select_idxs, generation_times, 
-                         condition_times, volume_metrics, 
-                         output_base, logger)
+    with quiet_stdout(not args.verbose):
+        log_final_statistics(select_idxs, generation_times,
+                             condition_times, volume_metrics,
+                             output_base, logger)
+    remove_empty_directories(output_base)
 
 
 def generate_xray_verification(
@@ -809,9 +835,15 @@ def main() -> None:
     device = setup_device(config)
     
     output_base, debug_dir, samples_dir, conditions_dir, xray_verification_dir, logger = initialize_paths(args, config, device)
-    model = load_model(config, args, device, logger)
+    if not args.verbose:
+        logging.disable(logging.CRITICAL)
+        logging.getLogger("LIDCVolumes").disabled = True
+
+    with quiet_stdout(not args.verbose):
+        model = load_model(config, args, device, logger)
     diffusion = setup_diffusion(args)
-    dataset = setup_data(config, device, logger, debug_dir)
+    with quiet_stdout(not args.verbose):
+        dataset = setup_data(config, device, logger, debug_dir)
     
     generate_conditional_samples(
         dataset, model, diffusion, 

@@ -107,6 +107,9 @@ python sample_xrays.py \
   --no-save-intermediate
 ```
 
+X-ray sampling is quiet by default. Add `--verbose` to show model, dataset,
+DRR, and per-step diagnostic logs.
+
 Run the other volumetric inverse problems with the same frozen checkpoint:
 
 ```bash
@@ -117,8 +120,7 @@ python sample_downstream.py \
   --ckpt pretrained/tf_prdit_lidc.pt \
   --scale-factor 4 \
   --num-samples 10 \
-  --output-dir outputs_super_resolution \
-  --new
+  --output-dir outputs_super_resolution
 
 # Fill a centered region occupying 50% of each spatial dimension
 python sample_downstream.py \
@@ -128,8 +130,7 @@ python sample_downstream.py \
   --mask-type center \
   --mask-ratio 0.5 \
   --num-samples 10 \
-  --output-dir outputs_infilling \
-  --new
+  --output-dir outputs_infilling
 
 # 3D Gaussian deblurring
 python sample_downstream.py \
@@ -139,12 +140,15 @@ python sample_downstream.py \
   --blur-kernel-size 5 \
   --blur-sigma 2.0 \
   --num-samples 10 \
-  --output-dir outputs_deblurring \
-  --new
+  --output-dir outputs_deblurring
 ```
 
 Task-specific operator settings are documented in the corresponding YAML files
-under `configs/`; command-line values control the current run.
+under `configs/`; command-line values control the current run. Downstream tasks
+use the guided sampling scheme by default, so no additional sampling-mode flag
+is required. Console output is quiet by default; add `--verbose` to show model,
+dataset, and per-step diagnostics. Empty output directories are removed
+automatically after each run.
 
 ## Change X-ray View Number
 

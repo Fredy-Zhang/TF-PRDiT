@@ -30,6 +30,20 @@ def save_reference_volume(volume: torch.Tensor, save_dir: str, name: str) -> Non
     nib.save(nib.Nifti1Image(volume_np, np.eye(4)), os.path.join(save_dir, f"{name}.nii.gz"))
 
 
+def remove_empty_directories(root: str) -> None:
+    """Remove empty output directories recursively, keeping every saved file."""
+    if not os.path.isdir(root):
+        return
+    for current_dir, _, _ in os.walk(root, topdown=False):
+        if current_dir == root:
+            continue
+        try:
+            os.rmdir(current_dir)
+        except OSError:
+            # The directory contains an output or was already removed.
+            pass
+
+
 def normalize_image(image: np.ndarray) -> np.ndarray:
     """Normalize image to [0, 1] range."""
     img_min, img_max = image.min(), image.max()
